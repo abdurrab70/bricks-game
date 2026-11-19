@@ -139,6 +139,7 @@
     score: 0,
     best: +loadStr("bricksBest", "0") || 0,
     prevBest: 0,
+    seed: 1, // ✅ session seed — প্রতি গেমে নতুন pattern
     level: 1,
     lives: 3,
     shake: 0,
@@ -152,8 +153,9 @@
     trophies: 0,
     trophyT: 0,
   };
-  // ✅ PADDLE এখন উপরে তোলা হয়েছে (আঙুলের জন্য জায়গা)
-  const PADDLE_Y_OFFSET = 130; // ← এখানে কম/বেশি করতে পারো (110–150)
+
+  // ✅ PADDLE উপরে তোলা হয়েছে (আঙুলের জন্য জায়গা)
+  const PADDLE_Y_OFFSET = 130; // ← টিউন করতে পারো: 110 / 130 / 150
   const paddle = {
     x: GAME_W / 2,
     y: GAME_H - PADDLE_Y_OFFSET,
@@ -161,6 +163,7 @@
     baseW: 96,
     h: 14,
   };
+
   let balls = [],
     bricks = [],
     powerups = [],
@@ -246,8 +249,10 @@
         return r === 0 || r === rows - 1 || c === 0 || c === COLS - 1;
     }
   }
+
+  // ✅ session seed + level মিলিয়ে প্রতি গেমে আলাদা random stream
   function levelRng(lv) {
-    let s = ((lv * 2654435761) ^ 0x9e3779b9) >>> 0;
+    let s = ((S.seed >>> 0) ^ (lv * 2654435761) ^ 0x9e3779b9) >>> 0;
     return function () {
       s ^= s << 13;
       s >>>= 0;
@@ -257,12 +262,19 @@
       return s / 4294967296;
     };
   }
+
   function buildLevel(lv) {
     bricks = [];
     const rng = levelRng(lv);
     let rows = Math.min(6 + Math.floor((lv - 1) / 2), 12);
     if (lv > 1 && rng() < 0.35) rows = Math.min(rows + 1, 13);
-    const pattern = PATTERN_POOL[(lv * 5 + 4) % PATTERN_POOL.length];
+
+    // ✅ প্রতিবার random pattern family বেছে নাও
+    const pattern =
+      PATTERN_POOL[
+        (Math.floor(rng() * PATTERN_POOL.length) + lv) % PATTERN_POOL.length
+      ];
+
     const mirror = rng() < 0.5;
     const shift = Math.floor(rng() * COLS);
     const cap = lv >= 17 ? 4 : lv >= 5 ? 3 : lv >= 2 ? 2 : 1;
@@ -615,6 +627,9 @@
   }
   function nextLevel() {
     S.level++;
+    // ✅ প্রতিটা level-এ আরও ভ্যারাইটি (চাইলে বাদ দিতে পারো)
+    S.seed = (S.seed ^ ((S.level * 2246822519) >>> 0)) >>> 0;
+    if (S.seed === 0) S.seed = 1;
     buildLevel(S.level);
     serveBall();
     syncHud();
@@ -645,6 +660,10 @@
     }
   }
   function startGame() {
+    // ✅ প্রতি নতুন গেমে নতুন random seed → নতুন pattern
+    S.seed = (Math.random() * 0xffffffff) >>> 0;
+    if (S.seed === 0) S.seed = 1;
+
     S.score = 0;
     S.lives = 3;
     S.level = 1;
@@ -678,6 +697,10 @@
     syncOverlays();
   }
   function goHome() {
+    // ✅ মেনু থেকে ফিরে এলে preview-ও নতুন pattern দেখাবে
+    S.seed = (Math.random() * 0xffffffff) >>> 0;
+    if (S.seed === 0) S.seed = 1;
+
     S.state = "menu";
     S.score = 0;
     S.level = 1;
@@ -1174,7 +1197,7 @@
     if (S.state === "menu") {
       dim(0.45);
     } else if (S.state === "serve") {
-      // ✅ paddle উপরে তোলা হয়েছে, তাই launch hint-ও উপরে আনলাম
+      // ✅ paddle উপরে তোলা, launch hint-ও paddle-এর নিচে
       text(
         "TAP / SPACE — LAUNCH",
         GAME_W / 2,
@@ -1352,7 +1375,6 @@
   canvas.addEventListener("pointerdown", (e) => {
     e.preventDefault();
     ac();
-    // touch-এও paddle সোজা আঙুলের নিচে চলে আসবে
     const r = canvas.getBoundingClientRect();
     if (r.width > 0)
       pointerX = clamp(((e.clientX - r.left) / r.width) * GAME_W, 0, GAME_W);
