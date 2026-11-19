@@ -152,7 +152,15 @@
     trophies: 0,
     trophyT: 0,
   };
-  const paddle = { x: GAME_W / 2, y: GAME_H - 46, w: 96, baseW: 96, h: 14 };
+  // ✅ PADDLE এখন উপরে তোলা হয়েছে (আঙুলের জন্য জায়গা)
+  const PADDLE_Y_OFFSET = 130; // ← এখানে কম/বেশি করতে পারো (110–150)
+  const paddle = {
+    x: GAME_W / 2,
+    y: GAME_H - PADDLE_Y_OFFSET,
+    w: 96,
+    baseW: 96,
+    h: 14,
+  };
   let balls = [],
     bricks = [],
     powerups = [],
@@ -210,33 +218,32 @@
     const mid = (COLS - 1) / 2;
     switch (p) {
       case 0:
-        return true; // full wall
+        return true;
       case 1:
         return (
           Math.abs(c - mid) <= mid * (1 - r / Math.max(rows - 1, 1)) + 0.51
-        ); // pyramid
+        );
       case 2:
-        return (r + c) % 2 === 0; // checker
+        return (r + c) % 2 === 0;
       case 3:
-        return c <= 2 || c >= COLS - 3; // twin towers
+        return c <= 2 || c >= COLS - 3;
       case 4:
         return (
           Math.abs(c - mid) / mid +
             Math.abs(r - (rows - 1) / 2) / Math.max((rows - 1) / 2, 1) <=
           1.3
-        ); // diamond
+        );
       case 5:
-        return (c + r) % 4 < 2; // diagonal stripes
+        return (c + r) % 4 < 2;
       case 6:
-        return c % 2 === 0; // columns
+        return c % 2 === 0;
       case 7: {
-        // X shape
         const dx = Math.abs(c - mid) / mid;
         const dy = Math.abs(r - (rows - 1) / 2) / Math.max((rows - 1) / 2, 1);
         return Math.abs(dx - dy) < 0.34;
       }
       default:
-        return r === 0 || r === rows - 1 || c === 0 || c === COLS - 1; // hollow frame
+        return r === 0 || r === rows - 1 || c === 0 || c === COLS - 1;
     }
   }
   function levelRng(lv) {
@@ -269,7 +276,6 @@
       }
       cells.push(row);
     }
-    // 1-3 seeded random flips: prottek level er layout unique rakhte
     if (lv > 1) {
       const flips = 1 + Math.floor(rng() * 3);
       for (let i = 0; i < flips; i++) {
@@ -455,7 +461,7 @@
     }
   }
 
-  /* ================= combo milestones (har 3 brick = bonus ball, har 10 = advanced power) ================= */
+  /* ================= combo milestones ================= */
   const ADV_POOL = ["fireball", "megalaser", "blitz", "megapaddle"];
   const ADV_INFO = {
     fireball: {
@@ -976,6 +982,22 @@
       ctx.fillStyle = "rgba(148,163,184," + a.toFixed(3) + ")";
       ctx.fillRect(s.x, yy, s.r, s.r);
     }
+
+    // ✅ নিচের touch zone hint (paddle উপরে তোলার কারণে)
+    const tzTop = paddle.y + paddle.h + 10;
+    if (tzTop < GAME_H - 20) {
+      const g = ctx.createLinearGradient(0, tzTop, 0, GAME_H);
+      g.addColorStop(0, "rgba(56,189,248,0.06)");
+      g.addColorStop(1, "rgba(56,189,248,0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, tzTop, GAME_W, GAME_H - tzTop);
+      ctx.fillStyle = "rgba(124,138,165,0.35)";
+      ctx.font = "600 10px system-ui,sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("◀   drag here to move   ▶", GAME_W / 2, GAME_H - 14);
+    }
+
     ctx.strokeStyle = "rgba(56,189,248,0.22)";
     ctx.lineWidth = 2;
     rr(3, 3, GAME_W - 6, GAME_H - 6, 12);
@@ -1152,10 +1174,11 @@
     if (S.state === "menu") {
       dim(0.45);
     } else if (S.state === "serve") {
+      // ✅ paddle উপরে তোলা হয়েছে, তাই launch hint-ও উপরে আনলাম
       text(
         "TAP / SPACE — LAUNCH",
         GAME_W / 2,
-        700,
+        paddle.y + 34,
         11,
         "#7c8aa5",
         "800",
@@ -1329,6 +1352,10 @@
   canvas.addEventListener("pointerdown", (e) => {
     e.preventDefault();
     ac();
+    // touch-এও paddle সোজা আঙুলের নিচে চলে আসবে
+    const r = canvas.getBoundingClientRect();
+    if (r.width > 0)
+      pointerX = clamp(((e.clientX - r.left) / r.width) * GAME_W, 0, GAME_W);
     primaryAction();
   });
   canvas.addEventListener("contextmenu", (e) => e.preventDefault());
